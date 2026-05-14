@@ -1,11 +1,12 @@
 import streamlit as st
 from PIL import Image
 import io
+import base64
 from categories import CATEGORIES, CATEGORY_NAMES
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
 st.title("🕵️‍♂️ Grok Vision Спаймастер")
-st.markdown("**Загрузи скриншот — ИИ прочитает слова + цвета и сразу даст шифры**")
+st.markdown("**Загрузи скриншот — ИИ прочитает слова, цвета и даст шифры**")
 
 uploaded_file = st.file_uploader("📸 Загрузи скриншот полной доски 5×5", 
                                  type=["png", "jpg", "jpeg"])
@@ -21,66 +22,58 @@ if uploaded_file:
             st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("ИИ анализирует скриншот... (может занять 20–40 секунд)"):
+        with st.spinner("ИИ анализирует скриншот..."):
             try:
                 from groq import Groq
                 client = Groq(api_key=api_key)
 
-                # Конвертация изображения
+                # ==================== Правильная конвертация в base64 ====================
                 img_byte_arr = io.BytesIO()
                 image.save(img_byte_arr, format='JPEG')
-                img_bytes = img_byte_arr.getvalue()
+                img_byte_arr = img_byte_arr.getvalue()
+                
+                base64_image = base64.b64encode(img_byte_arr).decode('utf-8')
 
                 # ====================== 1. Распознавание доски ======================
                 vision_response = client.chat.completions.create(
-                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    model="llama-4-scout-17b-16e-instruct",   # актуальная vision модель
                     messages=[
                         {
                             "role": "user",
                             "content": [
                                 {
                                     "type": "text",
-                                    "text": """Ты эксперт по игре Коднеймс.
-Посмотри на скриншот и точно опиши доску.
+                                    "text": """Ты эксперт по Коднеймсу. Внимательно посмотри на скриншот.
 
-Перечисли **все 25 слов** и цвет каждой карточки в формате:
+Перечисли ВСЕ 25 слов и цвет каждой карточки в следующем формате:
 
 СЛОВА И ЦВЕТА:
 слово1 | цвет
 слово2 | цвет
 ...
 
-Цвета указывай как:
-- Синий
-- Красный
-- Белый
-- Чёрный
-
-Будь максимально точным, не пропускай ни одной карточки."""
+Используй цвета: Синий, Красный, Белый, Чёрный.
+Не пропусти ни одной карточки. Будь точным."""
                                 },
                                 {
                                     "type": "image_url",
-                                    "image_url": {"url": f"data:image/jpeg;base64,{img_bytes}"}
+                                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
                                 }
                             ]
                         }
                     ],
-                    temperature=0.2,
-                    max_tokens=1500
+                    temperature=0.3,
+                    max_tokens=1200
                 )
 
                 board_analysis = vision_response.choices[0].message.content
-                st.markdown("### 📋 Распознавание ИИ:")
+                st.markdown("### 📋 Распознано ИИ:")
                 st.markdown(board_analysis)
 
                 # ====================== 2. Генерация шифров ======================
-                st.markdown("### 🎯 Генерирую шифры...")
-
-                prompt = f"""Ты лучший спаймастер в русскоязычном Коднеймсе.
+                prompt = f"""Ты лучший спаймастер Коднеймса.
 
 {board_analysis}
-
-Используй категории, если они помогают найти большие группы.
 
 Правила:
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
@@ -93,11 +86,10 @@ if uploaded_file:
 - Твоя задача победить в 2-3 хода, если ты ходишь первым. Или в 2 хода, если вторым.
 - Такие шифры как "Банщика" могут подразумевать три категории: Человек, чувство/качество (что-то банщика, например, отзывчивасть, воля и тд), место (баня)
 
+Выдай 6–7 лучших вариантов начиная с самого сильного.
 
-Дай 6–7 лучших шифров, начиная с самого сильного.
-
-Формат строго:
-**Шифр: "слово" — на N → слово1, слово2, слово3...**
+Формат:
+**Шифр: "слово" — на N → слово1, слово2...**
 Короткое объяснение.
 
 Начинай сразу с шифров."""
@@ -105,8 +97,8 @@ if uploaded_file:
                 text_response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.7,
-                    max_tokens=1400
+                    temperature=0.75,
+                    max_tokens=1300
                 )
 
                 st.markdown("### 🎯 Рекомендуемые шифры:")
@@ -115,6 +107,4 @@ if uploaded_file:
             except Exception as e:
                 st.error(f"Ошибка: {e}")
 
-# Резерв
-st.markdown("---")
-st.caption("Если vision не сработает — используй ручной ввод слов ниже и обычную генерацию.")
+st.caption("Vision-режим пока экспериментальный. Если часто падает — будем использовать обычный режим.")
