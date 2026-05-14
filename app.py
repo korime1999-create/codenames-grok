@@ -1,40 +1,63 @@
 import streamlit as st
 from PIL import Image
+import pytesseract
 from categories import CATEGORIES, CATEGORY_NAMES
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok — ИИ Спаймастер")
+st.title("🕵️‍♂️ Grok — ИИ Спаймастер для Коднеймса")
+st.markdown("**Загрузи скриншот доски — ИИ поможет найти сильные шифры**")
 
-st.markdown("**Загружай скриншот и копируй слова**")
-
-# ====================== ВВОД ======================
-tab1, tab2 = st.tabs(["📝 Ввести слова", "📸 Скриншот доски"])
+# ====================== ЗАГРУЗКА СКРИНШОТА ======================
+uploaded_file = st.file_uploader("📸 Загрузи скриншот доски 5×5", 
+                                 type=["png", "jpg", "jpeg"], 
+                                 help="Чем лучше качество — тем точнее распознавание")
 
 words_input = ""
 
-with tab1:
-    words_input = st.text_area(
-        "Вставь все 25 слов через запятую или с новой строки:", 
-        height=200, 
-        placeholder="сторона, магистр, кроссовок, подножка..."
-    )
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Загруженный скриншот", use_column_width=True)
+    
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("🔍 Распознать слова (OCR)", use_container_width=True):
+            with st.spinner("Распознавание текста..."):
+                try:
+                    custom_config = r'--oem 3 --psm 6 -l rus+eng'
+                    text = pytesseract.image_to_string(image, config=custom_config)
+                    
+                    # Очистка текста
+                    lines = [line.strip() for line in text.split('\n') if line.strip()]
+                    extracted = []
+                    for line in lines:
+                        for word in line.replace(',', ' ').split():
+                            cleaned = word.strip().lower()
+                            if len(cleaned) > 2 and cleaned.isalpha():
+                                extracted.append(cleaned)
+                    
+                    words_input = ", ".join(extracted)
+                    st.success(f"✅ Распознано {len(extracted)} слов!")
+                    st.write("**Распознанные слова:**", words_input)
+                except Exception as e:
+                    st.error(f"Ошибка OCR: {e}")
 
-with tab2:
-    uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"])
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Скриншот", use_column_width=True)
-        st.caption("Скопируй слова из изображения в левое поле ↑")
+# ====================== РУЧНОЙ ВВОД ======================
+words_input = st.text_area(
+    "Или вставь/отредактируй слова вручную:", 
+    value=words_input,
+    height=130,
+    placeholder="сторона, магистр, кроссовок, подножка, директор..."
+)
 
-# ====================== ОБРАБОТКА ======================
 if not words_input:
-    st.warning("Введи слова в первое поле")
+    st.info("Загрузи скриншот или введи слова")
     st.stop()
 
+# ====================== ОБРАБОТКА СЛОВ ======================
 words = [w.strip().lower() for line in words_input.splitlines() for w in line.split(',') if w.strip()]
-board = list(dict.fromkeys([w for w in words if w]))
+board = list(dict.fromkeys(words))
 
-st.success(f"✅ Загружено **{len(board)}** слов")
+st.success(f"✅ Работает с **{len(board)}** словами")
 
 # Категории
 groups_text = ""
@@ -44,51 +67,56 @@ for cat_key, cat_name in CATEGORY_NAMES.items():
         groups_text += f"- {cat_name} ({len(found)}): {', '.join(found)}\n"
 
 # ====================== СОСТОЯНИЕ СТОЛА ======================
-st.subheader("🎨 Отметь открытые слова")
+st.subheader("🎨 Состояние доски")
 
-team = st.radio("Твоя команда:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
+team = st.radio("Ты играешь за:", ["🔵 Синие", "🔴 Красные"], horizontal=True, key="team")
 
 if "board_state" not in st.session_state or len(st.session_state.board_state) != len(board):
-    st.session_state.board_state = {}
+    st.session_state.board_state = {word: "Не открыто" for word in board}
 
 cols = st.columns(5)
 for i, word in enumerate(board):
     with cols[i % 5]:
-        default = "Не открыто"
         status = st.selectbox(
             word.capitalize(),
-            ["Не открыто", "✅ Моё", "❌ Чужое", "☠️ Чёрный"],
-            key=f"status_{word}"
+            ["Не открыто", "✅ Моё (открыто)", "❌ Чужое (открыто)", "☠️ Чёрный"],
+            key=f"status_{i}_{word}"
         )
         st.session_state.board_state[word] = status
 
 # ====================== КЛЭЙМ ======================
 st.subheader("🗣️ Клэйм")
-claim = st.text_input("Клэйм (по желанию):", placeholder="Не согласен...")
+claim = st.text_input("Твой клэйм (по желанию)", placeholder="Не согласен с 'животноводы' потому что...")
 
-api_key = st.text_input("Groq API Key", type="password")
+# ====================== API KEY И ГЕНЕРАЦИЯ ======================
+api_key = st.text_input("Groq API Key", type="password", help="Получить можно на console.groq.com")
 
 if st.button("🚀 Сгенерировать шифры", type="primary", use_container_width=True):
     if not api_key:
-        st.error("Нужен Groq API Key")
+        st.error("Введите Groq API Key")
         st.stop()
 
+    # Сбор информации о состоянии
     my_opened = [w for w, s in st.session_state.board_state.items() if "Моё" in s]
     opp_opened = [w for w, s in st.session_state.board_state.items() if "Чужое" in s]
-    black = any("Чёрный" in s for s in st.session_state.board_state.values())
+    black_taken = any("Чёрный" in s for s in st.session_state.board_state.values())
 
-    state_info = f"Моя команда ({team}): {len(my_opened)} открыто. Противник: {len(opp_opened)} открыто. Чёрный: {'да' if black else 'нет'}"
+    state_info = f"""
+Моя команда ({team}): {len(my_opened)} открыто → {', '.join(my_opened) if my_opened else 'нет'}
+Противник: {len(opp_opened)} открыто → {', '.join(opp_opened) if opp_opened else 'нет'}
+Чёрная карточка: {'взята' if black_taken else 'нет'}
+"""
 
-    prompt = f"""Ты — лучший спаймастер Коднеймса.
+    prompt = f"""Ты — лучший спаймастер в русскоязычном Коднеймсе.
 
-Слова: {', '.join(sorted(board))}
+Слова на доске: {', '.join(sorted(board))}
 
 Категории:
 {groups_text}
 
 {state_info}
 
-Правила шифра: 
+ПРАВИЛА ШИФРА:
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
 - Можно использовать шифр во множественном числе для обозначения 2+ слов одной категории, но не делать этого, если слишком много слов этой категории не принадлежат твоей команде или если вреди них есть черное.
 - "0" на шифр множественного числа нулит либо 2 слова одной категории если слов из этой категории много, либо одно слово и заданной категории и самое близкое по смыслу слово, если слов в этой категории на столе только 2 или меньше.
@@ -100,29 +128,34 @@ if st.button("🚀 Сгенерировать шифры", type="primary", use_c
 - Такие шифры как "Банщика" могут подразумевать три категории: Человек, чувство/качество (что-то банщика, например, отзывчивасть, воля и тд), место (баня)
 
 
-Выдай 6 лучших шифров.
+Выдай 6–7 лучших шифров, начиная с самого сильного.
 
 Формат:
-**Шифр: "слово" — на N → слово1, слово2...**
-Короткое объяснение."""
+**Шифр: "слово" — на N → слово1, слово2, слово3...**
+Короткое объяснение (1 предложение).
 
-    with st.spinner("Генерирую шифры..."):
+Начинай сразу."""
+
+    with st.spinner("ИИ думает..."):
         try:
             from groq import Groq
             client = Groq(api_key=api_key)
+            
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=1200
+                temperature=0.75,
+                max_tokens=1400
             )
-            st.markdown("### 🎯 Рекомендуемые шифры")
+            
+            st.markdown("### 🎯 Рекомендуемые шифры:")
             st.markdown(response.choices[0].message.content)
             
             if claim:
-                st.info(f"**Клэйм:** {claim}")
+                st.info(f"**Твой клэйм:** {claim}")
+                
         except Exception as e:
-            st.error(f"Ошибка: {e}")
+            st.error(f"Ошибка Groq: {e}")
 
-with st.expander("Все слова"):
+with st.expander("Все слова на доске"):
     st.write(", ".join(sorted(board)))
