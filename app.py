@@ -1,81 +1,91 @@
 import streamlit as st
 from PIL import Image
+import io
 from categories import CATEGORIES, CATEGORY_NAMES
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok — ИИ Спаймастер")
+st.title("🕵️‍♂️ Grok Vision Спаймастер")
+st.markdown("**Загрузи скриншот — ИИ сам прочитает слова, цвета и предложит шифры**")
 
-st.markdown("**Загрузи скриншот и быстро скопируй слова**")
-
-# ====================== СКРИНШОТ ======================
-uploaded_file = st.file_uploader("📸 Загрузи скриншот доски", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("📸 Загрузи скриншот полной доски", 
+                                 type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Скриншот доски", use_column_width=True)
-    st.caption("👇 Скопируй слова из картинки ниже")
 
-# ====================== ВВОД СЛОВ ======================
-words_input = st.text_area(
-    "Вставь все 25 слов сюда (через запятую или строку):", 
-    height=180,
-    placeholder="сторона, магистр, кроссовок, подножка, брюки, директор..."
-)
+    api_key = st.text_input("Groq API Key", type="password", key="groq_key")
 
-if not words_input:
-    st.stop()
+    if st.button("🚀 Прочитать доску и сгенерировать шифры", type="primary", use_container_width=True):
+        if not api_key:
+            st.error("Введите Groq API Key")
+            st.stop()
 
-words = [w.strip().lower() for line in words_input.splitlines() for w in line.split(',') if w.strip()]
-board = list(dict.fromkeys(words))
+        with st.spinner("ИИ анализирует изображение..."):
+            try:
+                from groq import Groq
+                client = Groq(api_key=api_key)
 
-st.success(f"✅ Загружено **{len(board)}** слов")
+                # Конвертируем изображение
+                img_byte_arr = io.BytesIO()
+                image.save(img_byte_arr, format='JPEG')
+                img_byte_arr = img_byte_arr.getvalue()
 
-# Категории
-groups_text = ""
-for cat_key, cat_name in CATEGORY_NAMES.items():
-    found = [w for w in board if w in CATEGORIES.get(cat_key, [])]
-    if found:
-        groups_text += f"- {cat_name} ({len(found)}): {', '.join(found)}\n"
+                # ==================== 1. Распознавание доски ====================
+                vision_prompt = """Ты эксперт по игре Коднеймс.
+Посмотри внимательно на скриншот доски.
 
-# ====================== СОСТОЯНИЕ ======================
-st.subheader("🎨 Состояние доски")
+1. Перечисли **все 25 слов** точно как они написаны.
+2. Для каждого слова укажи цвет карточки:
+   - Синий
+   - Красный  
+   - Белый
+   - Чёрный
 
-team = st.radio("Твоя команда:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
+Формат ответа строго такой:
 
-if "board_state" not in st.session_state or len(st.session_state.board_state) != len(board):
-    st.session_state.board_state = {w: "Не открыто" for w in board}
+СЛОВА И ЦВЕТА:
+слово1 | цвет
+слово2 | цвет
+...
+(ровно 25 строк)"""
 
-cols = st.columns(5)
-for i, word in enumerate(board):
-    with cols[i % 5]:
-        status = st.selectbox(word.capitalize(), 
-                            ["Не открыто", "✅ Моё", "❌ Чужое", "☠️ Чёрный"], 
-                            key=f"s_{i}")
-        st.session_state.board_state[word] = status
+                response = client.chat.completions.create(
+                    model="llama-3.2-90b-vision-preview",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": vision_prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{img_byte_arr}"}
+                                }
+                            ]
+                        }
+                    ],
+                    temperature=0.3,
+                    max_tokens=1500
+                )
 
-# ====================== ГЕНЕРАЦИЯ ======================
-api_key = st.text_input("Groq API Key", type="password")
+                ocr_result = response.choices[0].message.content
+                st.markdown("### 📋 Что увидел ИИ:")
+                st.markdown(ocr_result)
 
-if st.button("🚀 Сгенерировать шифры", type="primary", use_container_width=True):
-    if not api_key:
-        st.error("Введи Groq API Key")
-        st.stop()
+                # ==================== 2. Генерация шифров ====================
+                st.markdown("### 🎯 Генерирую шифры...")
 
-    my = [w for w, s in st.session_state.board_state.items() if "Моё" in s]
-    opp = [w for w, s in st.session_state.board_state.items() if "Чужое" in s]
-    black = any("Чёрный" in s for s in st.session_state.board_state.values())
+                full_prompt = f"""Ты лучший спаймастер в Коднеймсе.
 
-    state_info = f"Моя команда ({team.split()[0]}): {len(my)} открыто. Противник: {len(opp)} открыто. Чёрный: {'да' if black else 'нет'}"
+{ocr_result}
 
-    prompt = f"""Ты лучший спаймастер Коднеймса.
+Категории слов (используй если нужно):
+{groups_text if 'groups_text' in locals() else ''}
 
-Слова: {', '.join(sorted(board))}
+Сейчас твоя задача — дать сильные шифры для своей команды.
+Учитывай цвета карточек.
 
-Категории:
-{groups_text}
-
-{state_info}
-
+Правила:
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
 - Можно использовать шифр во множественном числе для обозначения 2+ слов одной категории, но не делать этого, если слишком много слов этой категории не принадлежат твоей команде или если вреди них есть черное.
 - "0" на шифр множественного числа нулит либо 2 слова одной категории если слов из этой категории много, либо одно слово и заданной категории и самое близкое по смыслу слово, если слов в этой категории на столе только 2 или меньше.
@@ -87,27 +97,29 @@ if st.button("🚀 Сгенерировать шифры", type="primary", use_c
 - Такие шифры как "Банщика" могут подразумевать три категории: Человек, чувство/качество (что-то банщика, например, отзывчивасть, воля и тд), место (баня)
 
 
-Дай 6–7 сильных шифров. Только одно слово или через дефис. Можно "0".
-Начинай с самых больших групп.
+Выдай 6–7 лучших шифров в формате:
 
-Формат:
 **Шифр: "слово" — на N → слово1, слово2...**
-Короткое объяснение."""
+Короткое объяснение.
 
-    with st.spinner("ИИ думает..."):
-        try:
-            from groq import Groq
-            client = Groq(api_key=api_key)
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.75,
-                max_tokens=1200
-            )
-            st.markdown("### 🎯 Рекомендуемые шифры:")
-            st.markdown(response.choices[0].message.content)
-        except Exception as e:
-            st.error(f"Ошибка: {e}")
+Начинай сразу с шифров."""
 
-with st.expander("Все слова"):
-    st.write(", ".join(sorted(board)))
+                response2 = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": full_prompt}],
+                    temperature=0.7,
+                    max_tokens=1400
+                )
+
+                st.markdown("### 🎯 Рекомендуемые шифры:")
+                st.markdown(response2.choices[0].message.content)
+
+            except Exception as e:
+                st.error(f"Ошибка: {e}")
+                st.info("Vision-модель иногда бывает недоступна. Попробуй позже или используй ручной ввод.")
+
+# ==================== Резервный ручной ввод ====================
+st.markdown("---")
+words_input = st.text_area("Ручной ввод слов (если vision не сработал):", height=120)
+
+st.caption("Vision-режим пока экспериментальный. Groq иногда ограничивает доступ к vision-модели.")
