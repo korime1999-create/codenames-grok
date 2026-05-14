@@ -37,7 +37,7 @@ with st.sidebar:
     selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
     model = model_options[selected_model_name]
     
-    temperature = st.slider("Температура", 0.1, 0.6, 0.32, 0.05)
+    temperature = st.slider("Температура", 0.1, 0.55, 0.3, 0.05)
 
 # ====================== MAIN ======================
 uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
@@ -69,6 +69,9 @@ if uploaded_file:
 
                 guessed_str = ", ".join(st.session_state.guessed_words_list)
 
+                # Base64 URL вынесен отдельно, чтобы избежать ошибки вложенности f-string
+                image_url = f"data:image/jpeg;base64,{base64_image}"
+
                 system_prompt = f"""Ты — сильный и агрессивный спаймастер Коднеймс.
 Ты играешь за {team_color} команду. Враги — {enemy}."""
 
@@ -78,7 +81,7 @@ if uploaded_file:
 Вражеская команда: {enemy}
 Уже отгаданы: {guessed_str}
 
-**Как ты должен играть (общая стратегия):**
+***Как ты должен играть (общая стратегия):**
 
 - Твоя цель — закрыть 8–10 слов за 2–3 хода.
 - На первых двух ходах старайся давать шифры на 4–6 слов.
@@ -111,59 +114,71 @@ if uploaded_file:
     {{
       "cipher": "Галстук",
       "number": 0,
-      "words": ["шарф", "вышивка", "строчка", "ремень"],
-      "explanation": "Галстук 0 — нулим самое очевидное, открываем 4 слова одежды"
+      "words": ["шарф", "вышивка", "строчка"],
+      "explanation": "Галстук 0 — нулим самое очевидное, открываем остальную одежду"
     }}
   ]
 }}
+```"""
+
                 response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": user_prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                        ]
-                    }
-                ],
-                temperature=temperature,
-                max_tokens=3200,
-                response_format={"type": "json_object"}
-            )
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": user_prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": image_url}
+                                }
+                            ]
+                        }
+                    ],
+                    temperature=temperature,
+                    max_tokens=3200,
+                    response_format={"type": "json_object"}
+                )
 
-            result = json.loads(response.choices[0].message.content)
+                result = json.loads(response.choices[0].message.content)
 
-            analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            st.session_state.analyses.append({
-                "id": analysis_id,
-                "timestamp": datetime.now().strftime("%H:%M"),
-                "model": selected_model_name,
-                "team": team,
-                "result": result,
-                "feedback": None
-            })
+                analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.session_state.analyses.append({
+                    "id": analysis_id,
+                    "timestamp": datetime.now().strftime("%H:%M"),
+                    "model": selected_model_name,
+                    "team": team,
+                    "result": result,
+                    "feedback": None
+                })
 
-            st.success("✅ Готово!")
+                st.success("✅ Готово!")
 
-            st.markdown("### 🎯 Рекомендуемые шифры")
-            for i, hint in enumerate(result.get("hints", [])[:8]):
-                words_list = hint.get("words", [])
-                if isinstance(words_list, list):
-                    words_str = ", ".join(words_list)
-                else:
-                    words_str = str(words_list)
-                
-                with st.container(border=True):
-                    st.markdown(f"**{hint.get('cipher')}** — на **{hint.get('number')}** → {words_str}")
-                    st.caption(hint.get('explanation', ''))
+                st.markdown("### 🎯 Рекомендуемые шифры")
+                for i, hint in enumerate(result.get("hints", [])[:8]):
+                    words_list = hint.get("words", [])
+                    words_str = ", ".join(words_list) if isinstance(words_list, list) else str(words_list)
                     
-                    col1, col2 = st.columns(2)
-                    if col1.button("👍 Класс", key=f"good_{i}_{analysis_id}"):
-                        st.session_state.good_hints.append(f"{hint.get('cipher')} {hint.get('number')}")
-                    if col2.button("👎 Не класс", key=f"bad_{i}_{analysis_id}"):
-                        st.session_state.bad_hints.append(f"{hint.get('cipher')} {hint.get('number')}")
+                    with st.container(border=True):
+                        st.markdown(f"**{hint.get('cipher')}** — на **{hint.get('number')}** → {words_str}")
+                        st.caption(hint.get('explanation', ''))
+                        
+                        col1, col2 = st.columns(2)
+                        if col1.button("👍 Класс", key=f"good_{i}_{analysis_id}"):
+                            st.session_state.good_hints.append(f"{hint.get('cipher')} {hint.get('number')}")
+                        if col2.button("👎 Не класс", key=f"bad_{i}_{analysis_id}"):
+                            st.session_state.bad_hints.append(f"{hint.get('cipher')} {hint.get('number')}")
 
-        except Exception as e:
-            st.error(f"Ошибка: {str(e)[:700]}")
+            except Exception as e:
+                st.error(f"Ошибка: {str(e)[:700]}")
+
+# История
+if st.session_state.analyses:
+    st.divider()
+    st.subheader("📖 История")
+    for a in reversed(st.session_state.analyses[-5:]):
+        with st.expander(f"{a['timestamp']} — {a['model']}"):
+            st.json(a["result"], expanded=False)
+
+st.caption("Generation G • GenevieveAi for Codenames")
