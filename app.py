@@ -4,16 +4,13 @@ import io
 import base64
 import json
 from datetime import datetime
-import os
 
-# Импорт твоих категорий
 from categories import CATEGORIES, CATEGORY_NAMES, get_categories, get_primary_category
-
 from groq import Groq
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
 st.title("🕵️‍♂️ Grok — Продвинутый Спаймастер Коднеймс")
-st.markdown("**Анализирует доску + использует твои категории + учится на отзывах**")
+st.markdown("**Vision + категории + обучение на отзывах**")
 
 # ====================== SESSION STATE ======================
 if "analyses" not in st.session_state:
@@ -24,69 +21,61 @@ if "feedback" not in st.session_state:
 # ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("⚙️ Настройки")
-    
     team_color = st.radio("Твоя команда:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
     team = "blue" if "Синие" in team_color else "red"
     
     model_options = {
-        "Llama 4 Scout (лучший сейчас)": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "Llama 4 Scout (лучший)": "meta-llama/llama-4-scout-17b-16e-instruct",
         "Llama 4 Maverick": "meta-llama/llama-4-maverick-17b-128e-instruct",
         "Llama 3.2 11B Vision": "llama-3.2-11b-vision-preview",
     }
     selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
     model = model_options[selected_model_name]
     
-    temperature = st.slider("Температура (креативность)", 0.1, 0.8, 0.35, 0.05)
+    temperature = st.slider("Температура", 0.1, 0.8, 0.35, 0.05)
     
     st.divider()
-    st.info(f"Категорий загружено: **{len(CATEGORIES)}**")
+    st.info(f"Категорий: **{len(CATEGORY_NAMES)}**")
 
 # ====================== MAIN ======================
-uploaded_file = st.file_uploader("Загрузи скриншот доски Коднеймс", 
-                                type=["png", "jpg", "jpeg"], 
-                                label_visibility="collapsed")
+uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, use_column_width=True)
 
-    api_key = st.text_input("Groq API Key", type="password", 
-                           help="Можно задать через .env как GROQ_API_KEY")
-
+    api_key = st.text_input("Groq API Key", type="password")
     guessed_words = st.text_input("Уже отгаданные слова (через запятую)", 
                                  placeholder="солнце, мастер, битва")
 
-    if st.button("🚀 Проанализировать и дать шифры", 
-                 type="primary", 
-                 use_container_width=True):
-        
+    if st.button("🚀 Проанализировать доску", type="primary", use_container_width=True):
         if not api_key:
             st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("ИИ анализирует доску..."):
+        with st.spinner("Анализирую доску..."):
             try:
                 client = Groq(api_key=api_key)
 
-                # Изображение → base64
                 buf = io.BytesIO()
                 image.save(buf, format="JPEG")
                 base64_image = base64.b64encode(buf.getvalue()).decode('utf-8')
 
-                # Системный промпт с категориями
-                system_prompt = f"""Ты — элитный спаймастер Коднеймс.
-Ты отлично знаешь все категории из базы:
+                # === ИСПРАВЛЕННЫЙ ПРОМПТ (добавлено слово json) ===
+                system_prompt = f"""Ты — лучший спаймастер Коднеймс. 
+Используй следующие категории для поиска связей:
 
 {CATEGORY_NAMES}
 
-Твоя команда: {team.upper()}. Помогай ей выигрывать максимально быстро."""
+Отвечай всегда строго в JSON формате."""
 
-                user_prompt = f"""Это текущая доска.
+                user_prompt = f"""Проанализируй этот скриншот доски Коднеймс.
 
-Уже отгаданные: {guessed_words if guessed_words else "ничего"}
+Уже отгаданные слова: {guessed_words if guessed_words else "нет"}
+Команда: {team.upper()}
 
-Предложи 6–8 самых сильных шифров на сейчас.
-Правила:
+Предложи 6–8 сильных шифров.
+
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
 - Можно использовать шифр во множественном числе для обозначения 2+ слов одной категории, но не делать этого, если слишком много слов этой категории не принадлежат твоей команде или если вреди них есть черное.
 - "0" на шифр множественного числа нулит либо 2 слова одной категории если слов из этой категории много, либо одно слово и заданной категории и самое близкое по смыслу слово, если слов в этой категории на столе только 2 или меньше.
@@ -97,7 +86,17 @@ if uploaded_file:
 - Твоя задача победить в 2-3 хода, если ты ходишь первым. Или в 2 хода, если вторым.
 - Такие шифры как "Банщика" могут подразумевать три категории: Человек, чувство/качество (что-то банщика, например, отзывчивасть, воля и тд), место (баня)
 
-Начинай сразу с шифров."""
+Ответ должен быть в формате JSON:
+{{
+  "hints": [
+    {{
+      "cipher": "слово",
+      "number": 3,
+      "words": "слово1, слово2, слово3",
+      "explanation": "короткое объяснение"
+    }}
+  ]
+}}"""
 
                 response = client.chat.completions.create(
                     model=model,
@@ -115,13 +114,13 @@ if uploaded_file:
                         }
                     ],
                     temperature=temperature,
-                    max_tokens=2200,
+                    max_tokens=2500,
                     response_format={"type": "json_object"}
                 )
 
                 result = json.loads(response.choices[0].message.content)
 
-                # Сохранение в историю
+                # Сохранение
                 analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
                 st.session_state.analyses.append({
                     "id": analysis_id,
@@ -132,39 +131,27 @@ if uploaded_file:
                     "feedback": None
                 })
 
-                st.success("✅ Анализ готов!")
+                st.success("✅ Готово!")
 
-                # Вывод результатов
-                st.markdown("### 🎯 Лучшие шифры")
-                for i, hint in enumerate(result.get("hints", result.get("шифры", []))[:8]):
+                st.markdown("### 🎯 Рекомендуемые шифры")
+                for i, hint in enumerate(result.get("hints", [])[:8]):
                     with st.container(border=True):
-                        cipher = hint.get("cipher") or hint.get("шифр", "")
-                        number = hint.get("number") or hint.get("число", "")
-                        words = hint.get("words") or hint.get("слова", "")
-                        explanation = hint.get("explanation") or hint.get("объяснение", "")
+                        st.markdown(f"**{hint.get('cipher', '—')}** — на **{hint.get('number', '?')}** → {hint.get('words', '')}")
+                        st.caption(hint.get('explanation', ''))
                         
-                        st.markdown(f"**{cipher}** — на **{number}** → {words}")
-                        st.caption(explanation)
-                        
-                        col1, col2 = st.columns(2)
-                        if col1.button("👍 Хороший шифр", key=f"good_{i}_{analysis_id}"):
-                            st.session_state.feedback[analysis_id] = "good"
-                            st.success("Отзыв сохранён!")
-                        if col2.button("👎 Не очень", key=f"bad_{i}_{analysis_id}"):
-                            st.session_state.feedback[analysis_id] = "bad"
-                            st.info("Спасибо за отзыв")
+                        c1, c2 = st.columns(2)
+                        c1.button("👍 Хорошо", key=f"good_{i}_{analysis_id}")
+                        c2.button("👎 Плохо", key=f"bad_{i}_{analysis_id}")
 
             except Exception as e:
-                st.error(f"Ошибка: {str(e)[:500]}")
-                st.info("Проверь ключ и попробуй другую модель.")
+                st.error(f"Ошибка: {str(e)[:600]}")
 
-# ====================== ИСТОРИЯ ======================
+# История
 if st.session_state.analyses:
     st.divider()
-    st.subheader("📖 История анализов")
-    for analysis in reversed(st.session_state.analyses[-6:]):
-        fb = analysis.get("feedback", "—")
-        with st.expander(f"{analysis['timestamp']} — {analysis['model']} | Оценка: {fb}"):
-            st.json(analysis["result"], expanded=False)
+    st.subheader("📖 История")
+    for a in reversed(st.session_state.analyses[-5:]):
+        with st.expander(f"{a['timestamp']} — {a['model']}"):
+            st.json(a["result"], expanded=False)
 
-st.caption("Grok Коднеймс v2.2 • categories.py + Groq Vision + обучение на отзывах")
+st.caption("Grok Коднеймс v2.3 • Исправлено JSON требование")
