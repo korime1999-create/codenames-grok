@@ -1,52 +1,91 @@
 import streamlit as st
 from PIL import Image
 import io
+import base64
+import json
+from datetime import datetime
+import os
+
+# Импорт твоих категорий
 from categories import CATEGORIES, CATEGORY_NAMES
 
+from groq import Groq
+
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok — Скриншот Спаймастер")
+st.title("🕵️‍♂️ Grok — Продвинутый Спаймастер Коднеймс")
+st.markdown("**Анализирует доску + использует твои категории + учится на отзывах**")
 
-st.markdown("**Просто загрузи скриншот доски**")
+# ====================== SESSION STATE ======================
+if "analyses" not in st.session_state:
+    st.session_state.analyses = []
+if "feedback" not in st.session_state:
+    st.session_state.feedback = {}
 
-uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+# ====================== SIDEBAR ======================
+with st.sidebar:
+    st.header("⚙️ Настройки")
+    
+    team_color = st.radio("Твоя команда:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
+    team = "blue" if "Синие" in team_color else "red"
+    
+    model_options = {
+        "Llama 4 Scout (лучший сейчас)": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "Llama 4 Maverick": "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "Llama 3.2 11B Vision": "llama-3.2-11b-vision-preview",
+    }
+    selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
+    model = model_options[selected_model_name]
+    
+    temperature = st.slider("Температура (креативность)", 0.1, 0.8, 0.35, 0.05)
+    
+    st.divider()
+    st.info(f"Категорий загружено: **{len(CATEGORIES)}**")
+
+# ====================== MAIN ======================
+uploaded_file = st.file_uploader("Загрузи скриншот доски Коднеймс", 
+                                type=["png", "jpg", "jpeg"], 
+                                label_visibility="collapsed")
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, use_column_width=True)
 
-    api_key = st.text_input("Groq API Key", type="password")
+    api_key = st.text_input("Groq API Key", type="password", 
+                           help="Можно задать через .env как GROQ_API_KEY")
 
-    if st.button("🚀 Проанализировать скриншот и дать шифры", type="primary", use_container_width=True):
+    guessed_words = st.text_input("Уже отгаданные слова (через запятую)", 
+                                 placeholder="солнце, мастер, битва")
+
+    if st.button("🚀 Проанализировать и дать шифры", 
+                 type="primary", 
+                 use_container_width=True):
+        
         if not api_key:
-            st.error("Введи Groq API Key")
+            st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("ИИ смотрит на скриншот..."):
+        with st.spinner("ИИ анализирует доску..."):
             try:
-                from groq import Groq
                 client = Groq(api_key=api_key)
 
-                # Конвертация изображения
+                # Изображение → base64
                 buf = io.BytesIO()
                 image.save(buf, format="JPEG")
-                image_bytes = buf.getvalue()
-                base64_image = image_bytes  # Groq принимает bytes в некоторых случаях, но лучше base64
+                base64_image = base64.b64encode(buf.getvalue()).decode('utf-8')
 
-                # Vision запрос
-                response = client.chat.completions.create(
-                    model="openai/gpt-oss-120b",   # попробуем эту
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": """Это скриншот игры Коднеймс. 
-Внимательно посмотри и сделай две вещи:
+                # Системный промпт с категориями
+                system_prompt = f"""Ты — элитный спаймастер Коднеймс.
+Ты отлично знаешь все категории из базы:
 
-1. Перечисли все 25 слов с доски.
-2. Сразу предложи 6–7 хороших шифров для игры.
+{CATEGORY_NAMES}
 
+Твоя команда: {team.upper()}. Помогай ей выигрывать максимально быстро."""
+
+                user_prompt = f"""Это текущая доска.
+
+Уже отгаданные: {guessed_words if guessed_words else "ничего"}
+
+Предложи 6–8 самых сильных шифров на сейчас.
 Правила:
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
 - Можно использовать шифр во множественном числе для обозначения 2+ слов одной категории, но не делать этого, если слишком много слов этой категории не принадлежат твоей команде или если вреди них есть черное.
@@ -58,15 +97,16 @@ if uploaded_file:
 - Твоя задача победить в 2-3 хода, если ты ходишь первым. Или в 2 хода, если вторым.
 - Такие шифры как "Банщика" могут подразумевать три категории: Человек, чувство/качество (что-то банщика, например, отзывчивасть, воля и тд), место (баня)
 
-
-Выдай 6 лучших шифров.
-
-Формат:
-**Шифр: "слово" — на N → слово1, слово2...**
-Короткое объяснение.
-
 Начинай сразу с шифров."""
-                                },
+
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": user_prompt},
                                 {
                                     "type": "image_url",
                                     "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
@@ -74,16 +114,57 @@ if uploaded_file:
                             ]
                         }
                     ],
-                    temperature=0.5,
-                    max_tokens=1500
+                    temperature=temperature,
+                    max_tokens=2200,
+                    response_format={"type": "json_object"}
                 )
 
-                st.markdown("### Результат:")
-                st.markdown(response.choices[0].message.content)
+                result = json.loads(response.choices[0].message.content)
+
+                # Сохранение в историю
+                analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.session_state.analyses.append({
+                    "id": analysis_id,
+                    "timestamp": datetime.now().strftime("%H:%M"),
+                    "model": selected_model_name,
+                    "team": team,
+                    "result": result,
+                    "feedback": None
+                })
+
+                st.success("✅ Анализ готов!")
+
+                # Вывод результатов
+                st.markdown("### 🎯 Лучшие шифры")
+                for i, hint in enumerate(result.get("hints", result.get("шифры", []))[:8]):
+                    with st.container(border=True):
+                        cipher = hint.get("cipher") or hint.get("шифр", "")
+                        number = hint.get("number") or hint.get("число", "")
+                        words = hint.get("words") or hint.get("слова", "")
+                        explanation = hint.get("explanation") or hint.get("объяснение", "")
+                        
+                        st.markdown(f"**{cipher}** — на **{number}** → {words}")
+                        st.caption(explanation)
+                        
+                        col1, col2 = st.columns(2)
+                        if col1.button("👍 Хороший шифр", key=f"good_{i}_{analysis_id}"):
+                            st.session_state.feedback[analysis_id] = "good"
+                            st.success("Отзыв сохранён!")
+                        if col2.button("👎 Не очень", key=f"bad_{i}_{analysis_id}"):
+                            st.session_state.feedback[analysis_id] = "bad"
+                            st.info("Спасибо за отзыв")
 
             except Exception as e:
-                st.error(f"Ошибка: {str(e)[:300]}...")
-                st.info("Vision сейчас работает нестабильно. Если будет ошибка — попробуй другой ключ или позже.")
+                st.error(f"Ошибка: {str(e)[:500]}")
+                st.info("Проверь ключ и попробуй другую модель.")
 
-else:
-    st.info("Загрузи скриншот доски")
+# ====================== ИСТОРИЯ ======================
+if st.session_state.analyses:
+    st.divider()
+    st.subheader("📖 История анализов")
+    for analysis in reversed(st.session_state.analyses[-6:]):
+        fb = analysis.get("feedback", "—")
+        with st.expander(f"{analysis['timestamp']} — {analysis['model']} | Оценка: {fb}"):
+            st.json(analysis["result"], expanded=False)
+
+st.caption("Grok Коднеймс v2.2 • categories.py + Groq Vision + обучение на отзывах")
