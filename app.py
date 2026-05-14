@@ -2,39 +2,39 @@ import streamlit as st
 from categories import CATEGORIES, CATEGORY_NAMES
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok — Твой Идеальный Спаймастер для Коднеймс")
+st.title("🕵️‍♂️ Grok — Идеальный Спаймастер")
 
-st.markdown("**Вставь все 25 слов с доски** (через запятую или с новой строки):")
+st.markdown("**Вставь слова с доски** (через запятую или с новой строки):")
 
-words_input = st.text_area("", height=180, placeholder="врач, стоматолог, халат, сердце, пистолет, гном...")
+words_input = st.text_area("", height=200, placeholder="врач, стоматолог, халат, сердце, пистолет, гном...")
 
-if st.button("🔍 Проанализировать и предложить шифры", type="primary", use_container_width=True):
+if st.button("🔍 Проанализировать и предложить шифры", type="primary"):
     if words_input:
-        # Обработка слов
         words = [w.strip().lower() for line in words_input.splitlines() for w in line.split(',') if w.strip()]
-        board_words = list(dict.fromkeys(words))
+        board = list(dict.fromkeys(words))
         
-        st.success(f"✅ Загружено {len(board_words)} слов")
+        st.success(f"Загружено {len(board)} слов")
 
-        # Поиск групп
-        st.subheader("📊 Найденные категории:")
-        groups = {}
+        # Категории
+        st.subheader("Найденные категории:")
         for cat_key, cat_name in CATEGORY_NAMES.items():
-            found = [w for w in board_words if w in CATEGORIES.get(cat_key, [])]
+            found = [w for w in board if w in CATEGORIES.get(cat_key, [])]
             if found:
-                groups[cat_key] = found
-                emoji = {
-                    "person": "👤", "mythical_being": "🧌", "clothing": "👕", "furniture": "🪑",
-                    "item": "🔧", "organ": "🫀", "weapon": "⚔️", "paper": "📄", "food": "🍎",
-                    "animal": "🐺", "action": "🏃", "feeling_quality": "❤️", "positive": "✅",
-                    "negative": "❌", "science": "🔬", "sound": "🔊"
-                }.get(cat_key, "•")
-                st.write(f"{emoji} **{cat_name}** ({len(found)}): {', '.join(found)}")
+                st.write(f"• **{cat_name}** ({len(found)}): {', '.join(found)}")
 
-        # Генерация шифров
-        st.subheader("🚀 Рекомендуемые шифры:")
-        suggestions = []
-
+        # Шифры
+        st.subheader("Рекомендуемые шифры:")
+        st.info("Пока простая версия. Скоро будет умнее.")
+        
+        if "person" in CATEGORY_NAMES:
+            pers = [w for w in board if w in CATEGORIES.get("person", [])]
+            if len(pers) >= 2:
+                st.success(f"👤 **медик / профессия** — на {len(pers)} → {', '.join(pers)}")
+                
+        if "animal" in CATEGORY_NAMES:
+            anim = [w for w in board if w in CATEGORIES.get("animal", [])]
+            if len(anim) >= 2:
+                st.success(f"🐺 **хищник / зверь** — на {len(anim)} → {', '.join(anim)}")
         if "person" in groups and len(groups["person"]) >= 2:
             n = len(groups["person"])
             clue = "медик" if "медик" not in board_words else "профессия" if "профессия" not in board_words else "специалист"
