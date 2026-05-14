@@ -1,68 +1,50 @@
 import streamlit as st
-from PIL import Image, ImageEnhance, ImageFilter
-import pytesseract
 from categories import CATEGORIES, CATEGORY_NAMES
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok Спаймастер — Быстрый")
+st.title("🕵️‍♂️ Grok Спаймастер — Быстрый режим")
 
-st.markdown("**1. Загрузи скриншот → 2. Распознай → 3. Поправь слова**")
+st.markdown("**Слова сохраняются автоматически** — просто редактируй нужное")
 
-# ====================== СКРИНШОТ ======================
-uploaded_file = st.file_uploader("📸 Загрузи скриншот доски", type=["png", "jpg", "jpeg"])
+# ====================== СОХРАНЕНИЕ СЛОВ ======================
+if "saved_board" not in st.session_state:
+    st.session_state.saved_board = [""] * 25
 
-words_input = ""
+board_list = st.session_state.saved_board
 
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Скриншот", use_column_width=True)
+st.subheader("Доска 5×5 (редактируй слова)")
 
-    if st.button("🔍 Распознать слова", type="primary", use_container_width=True):
-        with st.spinner("Распознаю..."):
-            try:
-                # Улучшение картинки
-                img = image.convert("L")
-                img = ImageEnhance.Contrast(img).enhance(2.5)
-                img = img.filter(ImageFilter.SHARPEN)
-                
-                text = pytesseract.image_to_string(img, config=r'--oem 3 --psm 6 -l rus+eng')
-                
-                # Очистка
-                extracted = []
-                for line in text.splitlines():
-                    for w in line.split():
-                        clean = ''.join(c for c in w if c.isalpha() or c == '-').lower()
-                        if len(clean) > 2:
-                            extracted.append(clean)
-                
-                words_input = ", ".join(extracted)
-                st.success(f"Распознано {len(extracted)} слов")
-                st.write(words_input)
-            except Exception as e:
-                st.error("Не удалось распознать")
+cols = st.columns(5)
+for i in range(25):
+    with cols[i % 5]:
+        board_list[i] = st.text_input(
+            label=" ",
+            value=board_list[i],
+            key=f"word_{i}",
+            label_visibility="collapsed"
+        )
 
-# ====================== ПРАВКА ======================
-words_input = st.text_area("Поправь / дополни слова:", 
-                           value=words_input, 
-                           height=140,
-                           placeholder="сторона, магистр, кроссовок...")
+# Собираем актуальные слова
+board = [w.strip().lower() for w in board_list if w.strip()]
+board = list(dict.fromkeys(board))
 
-if not words_input:
-    st.stop()
+if len(board) > 0:
+    st.success(f"✅ **{len(board)} слов** готово")
 
-words = [w.strip().lower() for line in words_input.splitlines() for w in line.split(',') if w.strip()]
-board = list(dict.fromkeys(words))
-
-st.success(f"✅ **{len(board)} слов** готово")
+# Кнопка быстрой очистки
+if st.button("🗑️ Очистить всю доску"):
+    st.session_state.saved_board = [""] * 25
+    st.rerun()
 
 # ====================== ГЕНЕРАЦИЯ ======================
 api_key = st.text_input("Groq API Key", type="password")
 
-if st.button("🚀 СГЕНЕРИРОВАТЬ ШИФРЫ", type="primary", use_container_width=True):
-    if not api_key:
-        st.error("Введи API Key")
+if st.button("🚀 СГЕНЕРИРОВАТЬ ШИФРЫ СЕЙЧАС", type="primary", use_container_width=True):
+    if not api_key or len(board) < 15:
+        st.error("Введи API Key и хотя бы 15 слов")
         st.stop()
 
+    # Категории
     groups_text = ""
     for cat_key, cat_name in CATEGORY_NAMES.items():
         found = [w for w in board if w in CATEGORIES.get(cat_key, [])]
@@ -71,7 +53,7 @@ if st.button("🚀 СГЕНЕРИРОВАТЬ ШИФРЫ", type="primary", use_c
 
     prompt = f"""Ты лучший спаймастер. Время ограничено.
 
-Слова: {', '.join(sorted(board))}
+Слова на доске: {', '.join(sorted(board))}
 
 Категории:
 {groups_text}
@@ -110,3 +92,6 @@ if st.button("🚀 СГЕНЕРИРОВАТЬ ШИФРЫ", type="primary", use_c
             st.markdown(response.choices[0].message.content)
         except Exception as e:
             st.error(f"Ошибка: {e}")
+
+with st.expander("Все текущие слова"):
+    st.write(", ".join(sorted(board)))
