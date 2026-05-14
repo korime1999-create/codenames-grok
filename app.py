@@ -6,7 +6,7 @@ st.title("🕵️‍♂️ Grok — Идеальный Спаймастер дл
 
 st.markdown("**Вставь все 25 слов с доски** (через запятую или с новой строки):")
 
-words_input = st.text_area("", height=200, placeholder="врач, стоматолог, халат, сердце, пистолет, гном...")
+words_input = st.text_area("", height=150, placeholder="врач, стоматолог, халат, сердце...")
 
 if st.button("🔍 Проанализировать и предложить шифры", type="primary", use_container_width=True):
     if words_input:
@@ -15,60 +15,59 @@ if st.button("🔍 Проанализировать и предложить ши
         
         st.success(f"✅ Загружено {len(board_words)} слов")
 
-        # === Категории ===
+        # === АНАЛИЗ КАТЕГОРИЙ ===
         st.subheader("📊 Найденные категории:")
         groups = {}
         for cat_key, cat_name in CATEGORY_NAMES.items():
             found = [w for w in board_words if w in CATEGORIES.get(cat_key, [])]
             if found:
                 groups[cat_key] = found
-                emoji = {"person": "👤", "mythical_being": "🧌", "clothing": "👕", "furniture": "🪑",
-                         "organ": "🫀", "weapon": "⚔️", "animal": "🐺", "feeling_quality": "❤️",
-                         "positive": "✅", "negative": "❌"}.get(cat_key, "•")
+                emoji = {"person": "👤", "mythical_being": "🧌", "clothing": "👕", "organ": "🫀",
+                         "weapon": "⚔️", "animal": "🐺", "feeling_quality": "❤️", "positive": "✅",
+                         "negative": "❌", "action": "🏃"}.get(cat_key, "•")
                 st.write(f"{emoji} **{cat_name}** ({len(found)}): {', '.join(found)}")
 
-        # === ГЕНЕРАЦИЯ ШИФРОВ ПО ТВОИМ ПРАВИЛАМ ===
+        # === ГЕНЕРАЦИЯ ШИФРОВ ===
         st.subheader("🚀 Рекомендуемые шифры:")
         suggestions = []
 
-        for cat_key, found_words in groups.items():
-            n = len(found_words)
+        for cat_key, found in groups.items():
+            n = len(found)
             if n < 2:
                 continue
-                
-            cat_name = CATEGORY_NAMES[cat_key]
-            
+
             if cat_key == "person":
                 clue = "профессия" if "профессия" not in board_words else "медик" if "медик" not in board_words else "специалист"
-                suggestions.append(f"**{clue}** — на {n} → {', '.join(found_words)}")
+                suggestions.append(f"**{clue}** — на {n} → {', '.join(found)}")
             
             elif cat_key == "animal":
-                suggestions.append(f"**зверь / хищник** — на {n} → {', '.join(found_words)}")
+                suggestions.append(f"**зверь** — на {n} → {', '.join(found)}")
             
             elif cat_key == "clothing":
-                suggestions.append(f"**одежда** — на {n} → {', '.join(found_words)}")
+                suggestions.append(f"**одежда** — на {n} → {', '.join(found)}")
             
             elif cat_key == "organ":
-                suggestions.append(f"**орган** — на {n} → {', '.join(found_words)}")
+                suggestions.append(f"**орган** — на {n} → {', '.join(found)}")
             
             elif cat_key == "weapon":
-                suggestions.append(f"**оружие** — на {n} → {', '.join(found_words)}")
+                suggestions.append(f"**оружие** — на {n} → {', '.join(found)}")
             
             elif cat_key == "mythical_being":
-                suggestions.append(f"**сказка / миф** — на {n} → {', '.join(found_words)}")
+                suggestions.append(f"**нечисть / сказка** — на {n} → {', '.join(found)}")
             
             elif cat_key in ["feeling_quality", "positive", "negative"]:
-                suggestions.append(f"**эмоция** — на {n} → {', '.join(found_words)}")
+                # Правильное склонение
+                word = "чувство" if n == 1 else "чувства" if n in [2,3,4] else "чувств"
+                suggestions.append(f"**{word}** — на {n} → {', '.join(found)}")
             
-            else:
-                suggestions.append(f"**{cat_name.lower()}** — на {n} → {', '.join(found_words)}")
+            elif cat_key == "action":
+                suggestions.append(f"**движение** — на {n} → {', '.join(found)}")
 
-        # Вывод шифров
         if suggestions:
-            for i, sug in enumerate(suggestions[:8], 1):
+            for i, sug in enumerate(suggestions[:10], 1):
                 st.success(f"{i}. {sug}")
         else:
-            st.warning("Не нашлось групп из 2+ слов одной категории.")
+            st.info("Добавь больше слов одной категории")
 
         with st.expander("Все слова на доске"):
             st.write(", ".join(sorted(board_words)))
