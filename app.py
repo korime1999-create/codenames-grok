@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 
 # Импорт твоих категорий
-from categories import CATEGORIES, CATEGORY_NAMES
+from categories import CATEGORIES, CATEGORY_NAMES, get_categories, get_primary_category
 
 from groq import Groq
 
