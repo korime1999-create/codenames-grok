@@ -9,8 +9,8 @@ from categories import CATEGORIES, CATEGORY_NAMES
 from groq import Groq
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok — Продвинутый Спаймастер Коднеймс v2.9")
-st.markdown("**Агрессивный стиль + память на твои оценки + подробные правила**")
+st.title("🕵️‍♂️ Grok — Продвинутый Спаймастер Коднеймс v3.1")
+st.markdown("**Подробная механика 0 + агрессивный стиль**")
 
 # ====================== SESSION STATE ======================
 if "analyses" not in st.session_state:
@@ -23,7 +23,9 @@ if "bad_hints" not in st.session_state:
 # ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("⚙️ Настройки")
-    team_color = st.radio("Твоя команда:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
+    team_color = st.radio("🎯 За какую команду играешь?", 
+                         ["🔵 Синие", "🔴 Красные"], 
+                         horizontal=True)
     team = "blue" if "Синие" in team_color else "red"
     enemy = "Красные" if team == "blue" else "Синие"
     
@@ -33,7 +35,7 @@ with st.sidebar:
     selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
     model = model_options[selected_model_name]
     
-    temperature = st.slider("Температура (креативность)", 0.1, 0.55, 0.3, 0.05)
+    temperature = st.slider("Температура", 0.1, 0.55, 0.3, 0.05)
 
 # ====================== MAIN ======================
 uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
@@ -51,73 +53,64 @@ if uploaded_file:
             st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("Анализирую доску агрессивно..."):
+        with st.spinner("Анализирую..."):
             try:
                 client = Groq(api_key=api_key)
 
-                # Конвертация изображения
                 buf = io.BytesIO()
                 image.save(buf, format="JPEG")
                 base64_image = base64.b64encode(buf.getvalue()).decode('utf-8')
 
-                # История оценок для обучения
                 feedback_history = ""
                 if st.session_state.good_hints:
-                    feedback_history += "\nХорошие примеры шифров из прошлых игр:\n" + "\n".join([f"- {h}" for h in st.session_state.good_hints[-6:]])
+                    feedback_history += "\nХорошие шифры ранее:\n" + "\n".join([f"- {h}" for h in st.session_state.good_hints[-5:]])
                 if st.session_state.bad_hints:
-                    feedback_history += "\nПлохие примеры (избегай такого стиля):\n" + "\n".join([f"- {h}" for h in st.session_state.bad_hints[-6:]])
+                    feedback_history += "\nПлохие шифры (избегай):\n" + "\n".join([f"- {h}" for h in st.session_state.bad_hints[-5:]])
 
-                # ================== SYSTEM PROMPT ==================
-                system_prompt = f"""Ты — один из лучших и самых агрессивных спаймастеров в мире по Коднеймсу.
+                system_prompt = f"""Ты — агрессивный и сильный спаймастер Коднеймс.
+Ты играешь за {team_color} команду. Враги — {enemy}."""
 
-Ты играешь за {team_color} команду. Вражеская команда — {enemy}.
-
-Твоя главная цель — выиграть партию максимально быстро, закрывая 9–12+ слов за 2–3 хода.
-Ты смелый, креативный и не боишься оригинальных связей."""
-
-                # ================== USER PROMPT ==================
                 user_prompt = f"""Это скриншот доски Коднеймс.
 
 Твоя команда: {team_color}
 Вражеская команда: {enemy}
-Уже отгаданные слова: {guessed_words if guessed_words else "нет"}
+Уже отгаданы: {guessed_words if guessed_words else "нет"}
 
 {feedback_history}
 
-**Обязательные правила твоей игры:**
+**Подробные правила, которые ты должен строго соблюдать:**
 
-1. Агрессивный подход
-   - Стремись закрывать большое количество слов (4–6+ за ход).
-   - В первую очередь ищи самые большие группы (4, 5, 6+ слов).
-   - Двойки и тройки используй только если они очень сильные.
+1. **Механика "0" (очень важно!)**  
+   - "Штаны 0", "Одежды 0", "Насос 0" означает:  
+     **Возьми все слова этой категории/связи, кроме самого очевидного.**  
+   - 0 используется, чтобы пропустить самое кричащее/очевидное слово и взять остальные.
 
-2. Креатив и оригинальность
-   - Не бойся неочевидных, поэтичных и многогранных ассоциаций.
-   - Можно связывать разные категории (человек + место, еда + растение, действие + предмет и т.д.).
+2. **Множественное число**  
+   - "Одежды", "Ткани", "Клубники", "Места" — обозначает 2 и больше слов.
 
-3. Множественное число
-   - "Одежды", "Клубники", "Места", "Профессии", "Насосы", "Штаны" — для 2 и больше слов.
+3. **Стиль игры**  
+   - Ищи большие группы в первую очередь.  
+   - Будь оригинальным и креативным.  
+   - Предпочитай конкретные слова ("Штаны 0") перед общими категориями.
 
-4. Механика "0"
-   - "Штаны 0", "Одежды 0", "Насос 0" = взять несколько слов связи, кроме самого очевидного.
+4. **Безопасность**  
+   - Шифр должен быть выгоден твоей команде и относительно безопасен.
 
-5. Безопасность
-   - Шифр должен быть выгоден твоей команде и неудобен противнику.
-   - Минимизируй риск для чёрного слова и слов врага.
+Предложи 6–8 сильных шифров.
 
-Предложи 6–8 самых сильных шифров для текущей позиции.
-
-**Ответ строго в JSON формате:**
+**Ответ строго в JSON:**
+```json
 {{
   "hints": [
     {{
       "cipher": "Одежды",
       "number": 0,
       "words": "брюки, костюм, ремень",
-      "explanation": "Большая группа одежды, 0 пропускает самое очевидное"
+      "explanation": "Одежды 0 — берём все слова одежды кроме самого очевидного (пропускаем самое кричащее)"
     }}
   ]
-}}"""
+}}
+```"""
 
                 response = client.chat.completions.create(
                     model=model,
@@ -138,7 +131,6 @@ if uploaded_file:
 
                 result = json.loads(response.choices[0].message.content)
 
-                # Сохранение анализа
                 analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
                 st.session_state.analyses.append({
                     "id": analysis_id,
@@ -151,7 +143,6 @@ if uploaded_file:
 
                 st.success("✅ Анализ готов!")
 
-                # Вывод шифров
                 st.markdown("### 🎯 Рекомендуемые шифры")
                 for i, hint in enumerate(result.get("hints", [])[:8]):
                     hint_str = f"{hint.get('cipher')} — на {hint.get('number')} → {hint.get('words')}"
@@ -160,13 +151,13 @@ if uploaded_file:
                         st.markdown(f"**{hint.get('cipher')}** — на **{hint.get('number')}** → {hint.get('words')}")
                         st.caption(hint.get('explanation', ''))
                         
-                        col1, col2, col3 = st.columns([1, 1, 1])
+                        col1, col2 = st.columns(2)
                         if col1.button("👍 Класс", key=f"good_{i}_{analysis_id}"):
                             st.session_state.good_hints.append(hint_str)
-                            st.success("Запомнил как хороший шифр!")
+                            st.success("Запомнил!")
                         if col2.button("👎 Не класс", key=f"bad_{i}_{analysis_id}"):
                             st.session_state.bad_hints.append(hint_str)
-                            st.info("Запомнил как плохой шифр")
+                            st.info("Запомнил как плохой")
 
             except Exception as e:
                 st.error(f"Ошибка: {str(e)[:700]}")
@@ -174,9 +165,9 @@ if uploaded_file:
 # ====================== ИСТОРИЯ ======================
 if st.session_state.analyses:
     st.divider()
-    st.subheader("📖 История анализов")
-    for a in reversed(st.session_state.analyses[-6:]):
+    st.subheader("📖 История")
+    for a in reversed(st.session_state.analyses[-5:]):
         with st.expander(f"{a['timestamp']} — {a['model']}"):
             st.json(a["result"], expanded=False)
 
-st.caption("Grok Коднеймс v2.9 • Агрессивный стиль + память на оценки")
+st.caption("Grok Коднеймс v3.1 • Подробное объяснение 0")
