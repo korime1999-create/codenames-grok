@@ -1,62 +1,51 @@
 import streamlit as st
+from PIL import Image
+import io
 from categories import CATEGORIES, CATEGORY_NAMES
 
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
-st.title("🕵️‍♂️ Grok Спаймастер — Быстрый режим")
+st.title("🕵️‍♂️ Grok — Скриншот Спаймастер")
 
-st.markdown("**Слова сохраняются автоматически** — просто редактируй нужное")
+st.markdown("**Просто загрузи скриншот доски**")
 
-# ====================== СОХРАНЕНИЕ СЛОВ ======================
-if "saved_board" not in st.session_state:
-    st.session_state.saved_board = [""] * 25
+uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 
-board_list = st.session_state.saved_board
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, use_column_width=True)
 
-st.subheader("Доска 5×5 (редактируй слова)")
+    api_key = st.text_input("Groq API Key", type="password")
 
-cols = st.columns(5)
-for i in range(25):
-    with cols[i % 5]:
-        board_list[i] = st.text_input(
-            label=" ",
-            value=board_list[i],
-            key=f"word_{i}",
-            label_visibility="collapsed"
-        )
+    if st.button("🚀 Проанализировать скриншот и дать шифры", type="primary", use_container_width=True):
+        if not api_key:
+            st.error("Введи Groq API Key")
+            st.stop()
 
-# Собираем актуальные слова
-board = [w.strip().lower() for w in board_list if w.strip()]
-board = list(dict.fromkeys(board))
+        with st.spinner("ИИ смотрит на скриншот..."):
+            try:
+                from groq import Groq
+                client = Groq(api_key=api_key)
 
-if len(board) > 0:
-    st.success(f"✅ **{len(board)} слов** готово")
+                # Конвертация изображения
+                buf = io.BytesIO()
+                image.save(buf, format="JPEG")
+                image_bytes = buf.getvalue()
+                base64_image = image_bytes  # Groq принимает bytes в некоторых случаях, но лучше base64
 
-# Кнопка быстрой очистки
-if st.button("🗑️ Очистить всю доску"):
-    st.session_state.saved_board = [""] * 25
-    st.rerun()
+                # Vision запрос
+                response = client.chat.completions.create(
+                    model="llama-3.2-11b-vision-preview",   # попробуем эту
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": """Это скриншот игры Коднеймс. 
+Внимательно посмотри и сделай две вещи:
 
-# ====================== ГЕНЕРАЦИЯ ======================
-api_key = st.text_input("Groq API Key", type="password")
-
-if st.button("🚀 СГЕНЕРИРОВАТЬ ШИФРЫ СЕЙЧАС", type="primary", use_container_width=True):
-    if not api_key or len(board) < 15:
-        st.error("Введи API Key и хотя бы 15 слов")
-        st.stop()
-
-    # Категории
-    groups_text = ""
-    for cat_key, cat_name in CATEGORY_NAMES.items():
-        found = [w for w in board if w in CATEGORIES.get(cat_key, [])]
-        if found:
-            groups_text += f"- {cat_name} ({len(found)}): {', '.join(found)}\n"
-
-    prompt = f"""Ты лучший спаймастер. Время ограничено.
-
-Слова на доске: {', '.join(sorted(board))}
-
-Категории:
-{groups_text}
+1. Перечисли все 25 слов с доски.
+2. Сразу предложи 6–7 хороших шифров для игры.
 
 Правила:
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
@@ -77,21 +66,24 @@ if st.button("🚀 СГЕНЕРИРОВАТЬ ШИФРЫ СЕЙЧАС", type="pr
 Короткое объяснение.
 
 Начинай сразу с шифров."""
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                                }
+                            ]
+                        }
+                    ],
+                    temperature=0.5,
+                    max_tokens=1500
+                )
 
-    with st.spinner("Думаю..."):
-        try:
-            from groq import Groq
-            client = Groq(api_key=api_key)
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.8,
-                max_tokens=1100
-            )
-            st.markdown("### 🎯 Шифры:")
-            st.markdown(response.choices[0].message.content)
-        except Exception as e:
-            st.error(f"Ошибка: {e}")
+                st.markdown("### Результат:")
+                st.markdown(response.choices[0].message.content)
 
-with st.expander("Все текущие слова"):
-    st.write(", ".join(sorted(board)))
+            except Exception as e:
+                st.error(f"Ошибка: {str(e)[:300]}...")
+                st.info("Vision сейчас работает нестабильно. Если будет ошибка — попробуй другой ключ или позже.")
+
+else:
+    st.info("Загрузи скриншот доски")
