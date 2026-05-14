@@ -34,7 +34,7 @@ if uploaded_file:
 
                 # Vision запрос
                 response = client.chat.completions.create(
-                    model="llama-3.2-11b-vision-preview",   # попробуем эту
+                    model="openai/gpt-oss-120b",   # попробуем эту
                     messages=[
                         {
                             "role": "user",
