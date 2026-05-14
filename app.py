@@ -5,35 +5,34 @@ from categories import CATEGORIES, CATEGORY_NAMES
 st.set_page_config(page_title="Grok Коднеймс", layout="wide")
 st.title("🕵️‍♂️ Grok — ИИ Спаймастер")
 
-st.markdown("**Лучший помощник для Коднеймса**")
+st.markdown("**Загружай скриншот и копируй слова**")
 
-# ====================== ВВОД СЛОВ ======================
-tab1, tab2 = st.tabs(["📝 Ввести текст", "📸 Загрузить скриншот"])
+# ====================== ВВОД ======================
+tab1, tab2 = st.tabs(["📝 Ввести слова", "📸 Скриншот доски"])
 
 words_input = ""
 
 with tab1:
     words_input = st.text_area(
-        "Вставь все 25 слов с доски:", 
-        height=180, 
-        placeholder="стоматолог, врач, медведь, прыжок, ведьма..."
+        "Вставь все 25 слов через запятую или с новой строки:", 
+        height=200, 
+        placeholder="сторона, магистр, кроссовок, подножка..."
     )
 
 with tab2:
-    uploaded_file = st.file_uploader("Загрузи скриншот доски (для удобства)", 
-                                     type=["png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"])
     if uploaded_file:
         image = Image.open(uploaded_file)
-        st.image(image, caption="Скриншот доски", use_column_width=True)
-        st.info("Скопируй слова вручную в первое поле ↑")
+        st.image(image, caption="Скриншот", use_column_width=True)
+        st.caption("Скопируй слова из изображения в левое поле ↑")
 
-# ====================== ОСНОВНАЯ ЛОГИКА ======================
+# ====================== ОБРАБОТКА ======================
 if not words_input:
-    st.info("Введите слова в первое поле")
+    st.warning("Введи слова в первое поле")
     st.stop()
 
 words = [w.strip().lower() for line in words_input.splitlines() for w in line.split(',') if w.strip()]
-board = list(dict.fromkeys(words))
+board = list(dict.fromkeys([w for w in words if w]))
 
 st.success(f"✅ Загружено **{len(board)}** слов")
 
@@ -45,58 +44,51 @@ for cat_key, cat_name in CATEGORY_NAMES.items():
         groups_text += f"- {cat_name} ({len(found)}): {', '.join(found)}\n"
 
 # ====================== СОСТОЯНИЕ СТОЛА ======================
-st.subheader("🎨 Состояние доски")
+st.subheader("🎨 Отметь открытые слова")
 
-team = st.radio("Ты играешь за:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
+team = st.radio("Твоя команда:", ["🔵 Синие", "🔴 Красные"], horizontal=True)
 
-if "board_state" not in st.session_state:
+if "board_state" not in st.session_state or len(st.session_state.board_state) != len(board):
     st.session_state.board_state = {}
 
 cols = st.columns(5)
 for i, word in enumerate(board):
     with cols[i % 5]:
+        default = "Не открыто"
         status = st.selectbox(
             word.capitalize(),
-            ["Не открыто", "✅ Моё (открыто)", "❌ Чужое (открыто)", "☠️ Чёрный"],
-            key=f"status_{i}"
+            ["Не открыто", "✅ Моё", "❌ Чужое", "☠️ Чёрный"],
+            key=f"status_{word}"
         )
         st.session_state.board_state[word] = status
 
 # ====================== КЛЭЙМ ======================
 st.subheader("🗣️ Клэйм")
-claim = st.text_input("Твой клэйм (если нужно):", 
-                      placeholder="Не согласен с 'животноводы'...")
+claim = st.text_input("Клэйм (по желанию):", placeholder="Не согласен...")
 
-# ====================== API KEY ======================
-api_key = st.text_input("Groq API Key", type="password", help="Скопируй с console.groq.com")
+api_key = st.text_input("Groq API Key", type="password")
 
 if st.button("🚀 Сгенерировать шифры", type="primary", use_container_width=True):
     if not api_key:
-        st.error("Введите Groq API Key")
+        st.error("Нужен Groq API Key")
         st.stop()
 
-    # Состояние доски
     my_opened = [w for w, s in st.session_state.board_state.items() if "Моё" in s]
     opp_opened = [w for w, s in st.session_state.board_state.items() if "Чужое" in s]
-    black_taken = any("Чёрный" in s for s in st.session_state.board_state.values())
+    black = any("Чёрный" in s for s in st.session_state.board_state.values())
 
-    state_info = f"""
-Моя команда ({team}): {len(my_opened)} открыто → {', '.join(my_opened) if my_opened else 'ничего'}
-Противник: {len(opp_opened)} открыто → {', '.join(opp_opened) if opp_opened else 'ничего'}
-Чёрная карточка: {'взята' if black_taken else 'ещё нет'}
-"""
+    state_info = f"Моя команда ({team}): {len(my_opened)} открыто. Противник: {len(opp_opened)} открыто. Чёрный: {'да' if black else 'нет'}"
 
-    prompt = f"""Ты — лучший спаймастер в русскоязычном Коднеймсе.
+    prompt = f"""Ты — лучший спаймастер Коднеймса.
 
-Слова на доске: {', '.join(sorted(board))}
+Слова: {', '.join(sorted(board))}
 
 Категории:
 {groups_text}
 
 {state_info}
 
-ПРАВИЛА:
-- Шифр — только одно слово или слово через дефис (животноводы, скотоводы, ведьмы, человек-паук).
+Правила шифра: 
 - Можно использовать "0" для того, чтобы команда не брала самое очевидное слово из категории и брала остальные.
 - Можно использовать шифр во множественном числе для обозначения 2+ слов одной категории, но не делать этого, если слишком много слов этой категории не принадлежат твоей команде или если вреди них есть черное.
 - "0" на шифр множественного числа нулит либо 2 слова одной категории если слов из этой категории много, либо одно слово и заданной категории и самое близкое по смыслу слово, если слов в этой категории на столе только 2 или меньше.
@@ -107,32 +99,28 @@ if st.button("🚀 Сгенерировать шифры", type="primary", use_c
 - Твоя задача победить в 2-3 хода, если ты ходишь первым. Или в 2 хода, если вторым.
 - Такие шифры как "Банщика" могут подразумевать три категории: Человек, чувство/качество (что-то банщика, например, отзывчивасть, воля и тд), место (баня)
 
-Выдай 6–7 лучших шифров, начиная с самого сильного.
+
+Выдай 6 лучших шифров.
 
 Формат:
 **Шифр: "слово" — на N → слово1, слово2...**
-Короткое объяснение.
+Короткое объяснение."""
 
-Начинай сразу."""
-
-    with st.spinner("ИИ думает..."):
+    with st.spinner("Генерирую шифры..."):
         try:
             from groq import Groq
             client = Groq(api_key=api_key)
-            
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.75,
-                max_tokens=1300
+                temperature=0.7,
+                max_tokens=1200
             )
-            
-            st.markdown("### 🎯 Рекомендуемые шифры:")
+            st.markdown("### 🎯 Рекомендуемые шифры")
             st.markdown(response.choices[0].message.content)
             
             if claim:
-                st.info(f"**Твой клэйм:** {claim}")
-                
+                st.info(f"**Клэйм:** {claim}")
         except Exception as e:
             st.error(f"Ошибка: {e}")
 
