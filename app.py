@@ -1,10 +1,12 @@
 import streamlit as st
+import streamlit as st
 from PIL import Image
 import io
 import base64
 import json
 from datetime import datetime
-from pathlib import Path
+
+from groq import Groq
 
 st.set_page_config(page_title="Generation G", layout="wide")
 
@@ -19,15 +21,19 @@ if "good_hints" not in st.session_state:
 if "bad_hints" not in st.session_state:
     st.session_state.bad_hints = []
 if "guessed_words_list" not in st.session_state:
-    st.session_state.guessed_words_list = ["солнце", "мастер", "битва"]
+    st.session_state.guessed_words_list = []
 
 # ====================== SIDEBAR ======================
 with st.sidebar:
     st.header("⚙️ Настройки")
-    team_color = st.radio("🎯 За какую команду играешь?", 
-                         ["🔵 Синие", "🔴 Красные"], horizontal=True)
-    team = "blue" if "Синие" in team_color else "red"
-    enemy = "Красные" if team == "blue" else "Синие"
+    
+    # === ВЫБОР КОМАНДЫ ===
+    team_color = st.radio(
+        "🎯 За какую команду работаем?", 
+        ["🔵 Синие", "🔴 Красные"], 
+        horizontal=True,
+        key="team_selector"
+    )
     
     model_options = {
         "Llama 4 Scout": "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -35,8 +41,7 @@ with st.sidebar:
     selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
     model = model_options[selected_model_name]
     
-    temperature = st.slider("Температура", 0.1, 0.55, 0.35, 0.05)
-
+    temperature = st.slider("Температура", 0.1, 0.75, 0.45, 0.05)
 # ====================== MAIN ======================
 uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 
