@@ -1,4 +1,4 @@
-import streamlit as st
+sIO()import streamlit as st
 from PIL import Image
 import io
 import base64
@@ -12,7 +12,7 @@ st.set_page_config(page_title="Generation G", layout="wide")
 st.title("🕵️‍♂️ Generation G")
 st.markdown("**GenevieveAi для Коднеймс**")
 
-# ====================== ВЫБОР КОМАНДЫ (теперь видно везде) ======================
+# ====================== ВЫБОР КОМАНДЫ ======================
 st.markdown("### 🎯 За какую команду работаем?")
 team_color = st.radio(
     label="Выберите команду",
@@ -63,6 +63,7 @@ if uploaded_file:
                 image_url = f"data:image/jpeg;base64,{base64_image}"
 
                 guessed_str = ", ".join(st.session_state.guessed_words_list)
+                
                 system_prompt = f"""Ты — Genevieve, элитный спаймастер Коднеймс.
 Ты работаешь исключительно за {team_color} команду."""
                 
