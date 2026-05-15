@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit as st
 from PIL import Image
 import io
 import base64
@@ -27,62 +26,11 @@ if "guessed_words_list" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Настройки")
     
-    # === ВЫБОР КОМАНДЫ ===
+    # Выбор команды — БЕЗ дублирующего ключа
     team_color = st.radio(
         "🎯 За какую команду работаем?", 
         ["🔵 Синие", "🔴 Красные"], 
-        horizontal=True,
-        key="team_selector"
-    )
-    
-    model_options = {
-        "Llama 4 Scout": "meta-llama/llama-4-scout-17b-16e-instruct",
-    }
-    selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
-    model = model_options[selected_model_name]
-    
-    temperature = st.slider("Температура", 0.1, 0.75, 0.45, 0.05)
-# ====================== MAIN ======================
-uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, use_column_width=True)
-
-import streamlit as st
-from PIL import Image
-import io
-import base64
-import json
-from datetime import datetime
-
-from groq import Groq
-
-st.set_page_config(page_title="Generation G", layout="wide")
-
-st.title("🕵️‍♂️ Generation G")
-st.markdown("**GenevieveAi для Коднеймс**")
-
-# ====================== SESSION STATE ======================
-if "analyses" not in st.session_state:
-    st.session_state.analyses = []
-if "good_hints" not in st.session_state:
-    st.session_state.good_hints = []
-if "bad_hints" not in st.session_state:
-    st.session_state.bad_hints = []
-if "guessed_words_list" not in st.session_state:
-    st.session_state.guessed_words_list = []
-
-# ====================== SIDEBAR ======================
-with st.sidebar:
-    st.header("⚙️ Настройки")
-    
-    # === ВЫБОР КОМАНДЫ ===
-    team_color = st.radio(
-        "🎯 За какую команду работаем?", 
-        ["🔵 Синие", "🔴 Красные"], 
-        horizontal=True,
-        key="team_selector"
+        horizontal=True
     )
     
     model_options = {
@@ -125,10 +73,7 @@ if uploaded_file:
                 image_url = f"data:image/jpeg;base64,{base64_image}"
 
                 guessed_str = ", ".join(st.session_state.guessed_words_list)
-
-                system_prompt = f"""Ты — Genevieve, один из лучших спаймастеров в мире Коднеймс.
-Ты играешь за {team_color}. Враг — {enemy}.
-Ты агрессивна, креативна и стратегически очень сильна. Твоя цель — закрывать по 8–10 слов за 2–3 хода."""
+                
 
                 user_prompt = f"""Проанализируй скриншот доски Коднеймс и предложи лучшие шифры **для {team_color} команды**.
 
