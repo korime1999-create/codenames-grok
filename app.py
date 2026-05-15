@@ -3,6 +3,7 @@ from PIL import Image
 import io
 import base64
 from datetime import datetime
+from pathlib import Path 
 
 from groq import Groq
 
