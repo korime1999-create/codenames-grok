@@ -2,7 +2,6 @@ import streamlit as st
 from PIL import Image
 import io
 import base64
-import json
 from datetime import datetime
 
 from groq import Groq
@@ -53,7 +52,7 @@ if uploaded_file:
             st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("Анализирую доску как топ-мастер..."):
+        with st.spinner("Думаю как топ-мастер..."):
             try:
                 client = Groq(api_key=api_key)
 
@@ -64,42 +63,22 @@ if uploaded_file:
 
                 guessed_str = ", ".join(st.session_state.guessed_words_list)
 
-                system_prompt = f"""Ты — Genevieve, элитный спаймастер Коднеймс.
-Ты работаешь исключительно за {team_color} команду.
+                system_prompt = f"""Ты — Genevieve, очень сильный и креативный спаймастер Коднеймс.
+Ты играешь за {team_color} команду."""
 
-                
+                user_prompt = f"""Проанализируй скриншот доски Коднеймс.
 - Шифр должен иметь **очень понятную и сильную связь** с несколькими словами своей команды.
 - Обязательно указывай конкретные слова, которые должны взять игроки.
 - Избегай банальных и слабых объяснений.
 - Если связь слабая — лучше не предлагай такой шифр.
 
-**Строго соблюдай этот JSON формат:**
-
-```json
-{{
-  "analysis": "Краткий, но точный разбор доски: какие сильные группы есть у своей команды, где чёрная карта, какие слова опасны.",
-  "hints": [
-    {{
-      "cipher": "Рождался",
-      "number": 0,
-      "primary_words": ["водолей", "полицейский", "врач", "идиот"],
-      "secondary_words": ["умножение"],
-      "enemy_hits": ["возможно одно красное"],
-      "white_hits": 0,
-      "expected_value": 5,
-      "explanation": "Глагол прошедшего времени 'рождался' сильно указывает на людей. Водолей — идеальное слово для нуля, так как человек рождается под знаком. После него легко берутся остальные люди.",
-      "risk": 2,
-      "style": "safe"
-    }}
-  ]
-}}
+**
 Дополнительные требования к тебе:
 primary_words — это слова, которые игроки должны взять первыми (самые очевидные).
 Всегда пиши реальную логику, почему этот шифр работает.
 Не придумывай натянутые связи.
 Предпочитай конкретные шифры (типа "Гром", "Охота") только если они действительно сильные.
 Предложи 7–8 сильных шифров."""
-
                 response = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[
@@ -109,12 +88,11 @@ primary_words — это слова, которые игроки должны в
                             {"type": "image_url", "image_url": {"url": image_url}}
                         ]}
                     ],
-                    temperature=0.45,
-                    max_tokens=4000,
-                    response_format={"type": "json_object"}
+                    temperature=0.5,
+                    max_tokens=4000
                 )
 
-                result = json.loads(response.choices[0].message.content)
+                result_text = response.choices[0].message.content
 
                 analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
                 st.session_state.analyses.append({
@@ -122,25 +100,12 @@ primary_words — это слова, которые игроки должны в
                     "timestamp": datetime.now().strftime("%H:%M"),
                     "model": "Llama 4 Scout",
                     "team": team_color,
-                    "result": result
+                    "result": result_text
                 })
 
                 st.success("✅ Анализ готов!")
-
                 st.markdown("### 🎯 Рекомендуемые шифры")
-                for i, hint in enumerate(result.get("hints", [])[:8]):
-                    with st.container(border=True):
-                        st.markdown(f"**{hint.get('cipher')} — {hint.get('number')}**")
-                        st.write("**Основные:**", ", ".join(hint.get("primary_words", [])))
-                        if hint.get("secondary_words"):
-                            st.write("**Дополнительно:**", ", ".join(hint.get("secondary_words", [])))
-                        st.caption(hint.get('explanation', ''))
-                        
-                        col1, col2 = st.columns(2)
-                        if col1.button("👍 Класс", key=f"good_{i}_{analysis_id}"):
-                            st.session_state.good_hints.append(hint.get('cipher'))
-                        if col2.button("👎 Не класс", key=f"bad_{i}_{analysis_id}"):
-                            st.session_state.bad_hints.append(hint.get('cipher'))
+                st.markdown(result_text)
 
             except Exception as e:
                 st.error(f"Ошибка: {str(e)[:700]}")
