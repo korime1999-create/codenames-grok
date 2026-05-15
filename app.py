@@ -73,6 +73,8 @@ if uploaded_file:
                 image_url = f"data:image/jpeg;base64,{base64_image}"
 
                 guessed_str = ", ".join(st.session_state.guessed_words_list)
+                system_prompt = f"""Ты — Genevieve, элитный спаймастер Коднеймс.
+Ты работаешь исключительно за {team_color} команду."""
                 
 
                 user_prompt = f"""Проанализируй скриншот доски Коднеймс и предложи лучшие шифры **для {team_color} команды**.
