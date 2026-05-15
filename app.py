@@ -91,7 +91,7 @@ few_shot = ""
 if st.session_state.memory["good_examples"]:
     few_shot = "\n\n**Примеры сильных шифров из прошлого:**\n"
     for ex in st.session_state.memory["good_examples"][-4:]:
-        few_shot += f"- {ex}\n"
+        few_shot += f"-\n"
 Правила распознавания цветов на этой доске:
 - **Ярко-синий фон** = слова {team_color} команды (наши)
 - **Красный/оранжевый фон** = слова противника
