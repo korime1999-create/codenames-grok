@@ -49,6 +49,57 @@ if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, use_column_width=True)
 
+import streamlit as st
+from PIL import Image
+import io
+import base64
+import json
+from datetime import datetime
+
+from groq import Groq
+
+st.set_page_config(page_title="Generation G", layout="wide")
+
+st.title("🕵️‍♂️ Generation G")
+st.markdown("**GenevieveAi для Коднеймс**")
+
+# ====================== SESSION STATE ======================
+if "analyses" not in st.session_state:
+    st.session_state.analyses = []
+if "good_hints" not in st.session_state:
+    st.session_state.good_hints = []
+if "bad_hints" not in st.session_state:
+    st.session_state.bad_hints = []
+if "guessed_words_list" not in st.session_state:
+    st.session_state.guessed_words_list = []
+
+# ====================== SIDEBAR ======================
+with st.sidebar:
+    st.header("⚙️ Настройки")
+    
+    # === ВЫБОР КОМАНДЫ ===
+    team_color = st.radio(
+        "🎯 За какую команду работаем?", 
+        ["🔵 Синие", "🔴 Красные"], 
+        horizontal=True,
+        key="team_selector"
+    )
+    
+    model_options = {
+        "Llama 4 Scout": "meta-llama/llama-4-scout-17b-16e-instruct",
+    }
+    selected_model_name = st.selectbox("Модель:", list(model_options.keys()))
+    model = model_options[selected_model_name]
+    
+    temperature = st.slider("Температура", 0.1, 0.75, 0.45, 0.05)
+
+# ====================== MAIN ======================
+uploaded_file = st.file_uploader("Загрузи скриншот доски", type=["png", "jpg", "jpeg"])
+
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, use_column_width=True)
+
     api_key = st.text_input("Groq API Key", type="password")
 
     guessed_input = st.text_input(
@@ -57,19 +108,17 @@ if uploaded_file:
     )
     
     if guessed_input:
-        st.session_state.guessed_words_list = [w.strip() for w in guessed_input.split(",") if w.strip()]
+        st.session_state.guessed_words_list = [w.strip().lower() for w in guessed_input.split(",") if w.strip()]
 
     if st.button("🚀 Проанализировать доску", type="primary", use_container_width=True):
         if not api_key:
             st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("Генерирую шифры..."):
+        with st.spinner("Думаю как топ-мастер..."):
             try:
-                from groq import Groq
                 client = Groq(api_key=api_key)
 
-                # Подготовка изображения
                 buf = io.BytesIO()
                 image.save(buf, format="JPEG")
                 base64_image = base64.b64encode(buf.getvalue()).decode('utf-8')
