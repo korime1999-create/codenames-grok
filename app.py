@@ -176,80 +176,59 @@ primary_words — это слова, которые игроки должны в
 Предложи ровно 7–8 лучших шифров."""
 
                 response = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": user_prompt},
-                                {"type": "image_url", "image_url": {"url": image_url}}
-                            ]
-                        }
-                    ],
-                    temperature=temperature,
-                    max_tokens=4000,
-                    response_format={"type": "json_object"}
-                )
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": [
+                        {"type": "text", "text": user_prompt},
+                        {"type": "image_url", "image_url": {"url": image_url}}
+                    ]}
+                ],
+                temperature=0.45,
+                max_tokens=4000,
+                response_format={"type": "json_object"}
+            )
 
-                result = json.loads(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
 
-                # Сохранение анализа
-                analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-                st.session_state.analyses.append({
-                    "id": analysis_id,
-                    "timestamp": datetime.now().strftime("%H:%M"),
-                    "model": selected_model_name,
-                    "team": team,
-                    "result": result,
-                    "feedback": None
-                })
+            analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            st.session_state.analyses.append({
+                "id": analysis_id,
+                "timestamp": datetime.now().strftime("%H:%M"),
+                "model": "Llama 4 Scout",
+                "team": team_color,
+                "result": result
+            })
 
-                st.success("✅ Анализ готов!")
+            st.success("✅ Анализ готов!")
 
-                # Отображение результатов
-                st.markdown("### 🎯 Рекомендуемые шифры")
-                for i, hint in enumerate(result.get("hints", [])[:8]):
-                    words_list = hint.get("words", [])
-                    words_str = ", ".join(words_list) if isinstance(words_list, list) else str(words_list)
+            st.markdown("### 🎯 Рекомендуемые шифры")
+            for i, hint in enumerate(result.get("hints", [])[:8]):
+                with st.container(border=True):
+                    st.markdown(f"**{hint.get('cipher')} — {hint.get('number')}**")
+                    st.write("**Основные:**", ", ".join(hint.get("primary_words", [])))
+                    if hint.get("secondary_words"):
+                        st.write("**Дополнительно:**", ", ".join(hint.get("secondary_words", [])))
+                    st.caption(hint.get('explanation', ''))
+                    
+                    col1, col2 = st.columns(2)
+                    if col1.button("👍 Класс", key=f"good_{i}_{analysis_id}"):
+                        st.session_state.good_hints.append(hint.get('cipher'))
+                    if col2.button("👎 Не класс", key=f"bad_{i}_{analysis_id}"):
+                        st.session_state.bad_hints.append(hint.get('cipher'))
 
-                    with st.container(border=True):
-                        st.markdown(f"**{hint.get('cipher')}** — на **{hint.get('number')}** → {words_str}")
-                        st.caption(hint.get('explanation', ''))
-                        
-                        col1, col2 = st.columns(2)
-                        if col1.button("👍 Класс", key=f"good_{i}_{analysis_id}"):
-                            hint_text = f"{hint.get('cipher')} {hint.get('number')}"
-                            st.session_state.good_hints.append(hint_text)
-                            st.success(f"Сохранено как хороший: {hint_text}")
-                        if col2.button("👎 Не класс", key=f"bad_{i}_{analysis_id}"):
-                            hint_text = f"{hint.get('cipher')} {hint.get('number')}"
-                            st.session_state.bad_hints.append(hint_text)
-                            st.error(f"Сохранено как плохой: {hint_text}")
-
-            except Exception as e:
-                st.error(f"Ошибка: {str(e)[:700]}")
-
-# ====================== ФИДБЕК ======================
+        except Exception as e:
+            st.error(f"Ошибка: {str(e)[:700]}")
+====================== ФИДБЕК ======================
 if st.session_state.good_hints or st.session_state.bad_hints:
-    st.divider()
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("👍 Хорошие шифры")
-        for h in st.session_state.good_hints[-12:]:
-            st.success(h)
-    with col2:
-        st.subheader("👎 Плохие шифры")
-        for h in st.session_state.bad_hints[-12:]:
-            st.error(h)
-
-# ====================== ИСТОРИЯ ======================
-if st.session_state.analyses:
-    st.divider()
-    st.subheader("📖 История анализов")
-    for a in reversed(st.session_state.analyses[-6:]):
-        with st.expander(f"{a['timestamp']} — {a['model']}"):
-            st.json(a["result"], expanded=False)
-
+st.divider()
+col1, col2 = st.columns(2)
+with col1:
+st.subheader("👍 Хорошие")
+for h in st.session_state.good_hints[-10:]:
+st.success(h)
+with col2:
+st.subheader("👎 Плохие")
+for h in st.session_state.bad_hints[-10:]:
+st.error(h)
 st.caption("Generation G • GenevieveAi for Codenames")
-
