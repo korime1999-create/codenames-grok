@@ -21,6 +21,16 @@ team_color = st.radio(
 )
 
 # ====================== SESSION STATE ======================
+
+# ====================== ПАМЯТЬ ======================
+FEEDBACK_FILE = Path("genevieve_memory.json")
+
+if "memory" not in st.session_state:
+    if FEEDBACK_FILE.exists():
+        st.session_state.memory = json.loads(FEEDBACK_FILE.read_text(encoding="utf-8"))
+    else:
+        st.session_state.memory = {"good_examples": [], "bad_examples": []}
+        
 if "analyses" not in st.session_state:
     st.session_state.analyses = []
 if "good_hints" not in st.session_state:
@@ -75,7 +85,12 @@ if uploaded_file:
 - Если связь слабая — лучше не предлагай такой шифр.
 ЕСЛИ ТЫ ЗАГАДЫВАЕШЬ КРАСНЫЕ СЛОВА, ТО НЕ ИМЕЕШЬ ПРАВА ЗАГАДЫВАТЬ СИНИЕ И НАОБОРОТ.
 ТЫ ДОЛЖНА ОЧЕНЬ ВНИМАТЕЛЬНО СМОТРЕТЬ НА ЦВЕТА КАРТОЧЕК!
-
+# Формируем few-shot из памяти
+few_shot = ""
+if st.session_state.memory["good_examples"]:
+    few_shot = "\n\n**Примеры сильных шифров из прошлого:**\n"
+    for ex in st.session_state.memory["good_examples"][-4:]:
+        few_shot += f"- {ex}\n"
 Правила распознавания цветов на этой доске:
 - **Ярко-синий фон** = слова {team_color} команды (наши)
 - **Красный/оранжевый фон** = слова противника
@@ -143,16 +158,24 @@ primary_words — это слова, которые игроки должны в
                 st.error(f"Ошибка: {str(e)[:700]}")
 
 # ====================== ФИДБЕК ======================
-if st.session_state.good_hints or st.session_state.bad_hints:
-    st.divider()
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("👍 Хорошие")
-        for h in st.session_state.good_hints[-10:]:
-            st.success(h)
-    with col2:
-        st.subheader("👎 Плохие")
-        for h in st.session_state.bad_hints[-10:]:
-            st.error(h)
+# ====================== ФИДБЕК ======================
+st.divider()
+col1, col2 = st.columns(2)
 
-st.caption("Generation G • GenevieveAi for Codenames")
+with col1:
+    st.subheader("👍 Отметь хорошие шифры")
+    good_input = st.text_input("Хороший шифр (например: Рождался 0)", key="good_input")
+    if st.button("Сохранить как хороший"):
+        ...
+
+with col2:
+    st.subheader("👎 Отметь плохие шифры")
+    bad_input = st.text_input("Плохой шифр", key="bad_input")
+    if st.button("Сохранить как плохой"):
+        if bad_input:
+            st.session_state.bad_hints.append(bad_input)
+            st.session_state.memory["bad_examples"].append(bad_input)
+            FEEDBACK_FILE.write_text(json.dumps(st.session_state.memory, ensure_ascii=False, indent=2), encoding="utf-8")
+            st.error("Сохранено в память!")
+
+st.caption("Generation G • Память включена")
