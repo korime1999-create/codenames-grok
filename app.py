@@ -52,7 +52,7 @@ if uploaded_file:
             st.error("Введите Groq API Key")
             st.stop()
 
-        with st.spinner("Думаю как топ-мастер..."):
+        with st.spinner("Анализирую доску..."):
             try:
                 client = Groq(api_key=api_key)
 
@@ -63,8 +63,8 @@ if uploaded_file:
 
                 guessed_str = ", ".join(st.session_state.guessed_words_list)
 
-                system_prompt = f"""Ты — Genevieve, очень сильный и креативный спаймастер Коднеймс.
-Ты играешь за {team_color} команду."""
+                system_prompt = f"""Ты — Genevieve, топовый спаймастер Коднеймс.
+Ты работаешь **строго** за {team_color} команду."""
 
                 user_prompt = f"""Проанализируй скриншот доски Коднеймс.
 - Шифр должен иметь **очень понятную и сильную связь** с несколькими словами своей команды.
