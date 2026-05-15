@@ -173,9 +173,8 @@ primary_words — это слова, которые игроки должны в
 Всегда пиши реальную логику, почему этот шифр работает.
 Не придумывай натянутые связи.
 Предпочитай конкретные шифры (типа "Гром", "Охота") только если они действительно сильные.
-Предложи ровно 7–8 лучших шифров."""
-
-                response = client.chat.completions.create(
+Предложи 7–8 сильных шифров."""
+response = client.chat.completions.create(
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=[
                     {"role": "system", "content": system_prompt},
